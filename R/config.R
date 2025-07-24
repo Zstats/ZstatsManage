@@ -54,7 +54,7 @@ readOSSJson <- function(file_path, use_cache = TRUE, cache_hours = 24) {
     
     if (cache_age_hours < cache_hours) {
       message("使用缓存数据: ", file_path)
-      return(jsonlite::fromJSON(cache_file))
+      return(jsonlite::fromJSON(cache_file, simplifyVector = FALSE))
     }
   }
   
@@ -72,12 +72,12 @@ readOSSJson <- function(file_path, use_cache = TRUE, cache_hours = 24) {
       writeLines(content, cache_file)
     }
     
-    jsonlite::fromJSON(content)
+    jsonlite::fromJSON(content, simplifyVector = FALSE)
   }, error = function(e) {
     # 如果网络错误且有缓存，使用缓存
     if (use_cache && file.exists(cache_file)) {
       warning("网络错误，使用过期缓存: ", e$message)
-      return(jsonlite::fromJSON(cache_file))
+      return(jsonlite::fromJSON(cache_file, simplifyVector = FALSE))
     }
     stop("无法读取OSS文件 '", file_path, "': ", e$message, "\n",
          "请检查网络连接或联系管理员")
