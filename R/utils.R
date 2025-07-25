@@ -257,8 +257,24 @@ updatePackageMetadata <- function(package_name,
   
   # 从文件名提取版本
   filename <- basename(package_file)
-  version_match <- regmatches(filename, regexpr("_([0-9\\.\\-]+)\\.tar\\.gz$", filename))
-  version <- sub("^_", "", sub("\\.tar\\.gz$", "", version_match))
+  
+  # 支持多种文件格式的版本提取
+  version <- NULL
+  if (grepl("\\.tar\\.gz$", filename)) {
+    version_match <- regmatches(filename, regexpr("_([0-9\\.\\-]+)\\.tar\\.gz$", filename))
+    if (length(version_match) > 0) {
+      version <- sub("^_", "", sub("\\.tar\\.gz$", "", version_match))
+    }
+  } else if (grepl("\\.zip$", filename)) {
+    version_match <- regmatches(filename, regexpr("_([0-9\\.\\-]+)\\.zip$", filename))
+    if (length(version_match) > 0) {
+      version <- sub("^_", "", sub("\\.zip$", "", version_match))
+    }
+  }
+  
+  if (is.null(version) || length(version) == 0) {
+    stop("无法从文件名提取版本信息: ", filename)
+  }
   
   # 构建相对路径
   relative_path <- file.path("packages", package_name, filename)
@@ -275,8 +291,19 @@ updatePackageMetadata <- function(package_name,
     breaking_changes = FALSE
   )
   
-  # 查找现有包
-  pkg_index <- which(sapply(metadata$packages, function(p) p$name == package_name))
+  # 查找现有包 - 安全处理空列表的情况
+  pkg_index <- integer(0)
+  if (length(metadata$packages) > 0) {
+    # 确保所有包都有name字段，并且返回逻辑向量
+    name_matches <- sapply(metadata$packages, function(p) {
+      if (is.list(p) && !is.null(p$name)) {
+        return(p$name == package_name)
+      } else {
+        return(FALSE)
+      }
+    })
+    pkg_index <- which(name_matches)
+  }
   
   if (length(pkg_index) > 0) {
     # 更新现有包

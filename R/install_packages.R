@@ -1,3 +1,262 @@
+#' 检测文件格式
+#'
+#' @description 检测文件是zip还是tar.gz格式
+#'
+#' @param file_path 文件路径
+#'
+#' @return "zip"或"tar.gz"
+#' @keywords internal
+detectFileFormat <- function(file_path) {
+  # 读取文件头部字节
+  con <- file(file_path, "rb")
+  on.exit(close(con))
+  
+  # 读取前4个字节
+  header <- readBin(con, "raw", n = 4)
+  
+  if (length(header) >= 4) {
+    # zip文件的魔数：50 4B 03 04 (PK..)
+    if (header[1] == as.raw(0x50) && header[2] == as.raw(0x4B) && 
+        header[3] == as.raw(0x03) && header[4] == as.raw(0x04)) {
+      return("zip")
+    }
+    # tar.gz文件通常以1F 8B开头（gzip魔数）
+    if (header[1] == as.raw(0x1F) && header[2] == as.raw(0x8B)) {
+      return("tar.gz")
+    }
+  }
+  
+  # 如果无法确定，根据文件扩展名判断
+  if (grepl("\\.zip$", file_path, ignore.case = TRUE)) {
+    return("zip")
+  } else if (grepl("\\.tar\\.gz$", file_path, ignore.case = TRUE)) {
+    return("tar.gz")
+  }
+  
+  return("unknown")
+}
+
+#' 通过直接解压安装包
+#'
+#' @description 直接解压zip文件到R库目录进行安装
+#'
+#' @param zip_file zip文件路径
+#' @param package_name 包名
+#'
+#' @return 安装成功返回TRUE，失败返回FALSE
+#' @keywords internal
+installByExtraction <- function(zip_file, package_name) {
+  # 获取R库路径
+  lib_paths <- .libPaths()
+  target_lib <- lib_paths[1]  # 使用第一个可写的库路径
+  
+  # 检查库路径是否可写
+  if (!file.access(target_lib, mode = 2) == 0) {
+    stop("R库目录不可写: ", target_lib)
+  }
+  
+  # 创建临时目录用于解压
+  temp_dir <- tempfile("pkg_direct_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  
+  tryCatch({
+    message("  解压zip文件到临时目录...")
+    # 解压zip文件
+    utils::unzip(zip_file, exdir = temp_dir)
+    
+    # 查找包目录
+    extracted_items <- list.files(temp_dir, full.names = TRUE)
+    package_dir <- NULL
+    
+    # 优先查找与包名匹配的目录
+    for (item in extracted_items) {
+      if (dir.exists(item)) {
+        item_name <- basename(item)
+        if (item_name == package_name && file.exists(file.path(item, "DESCRIPTION"))) {
+          package_dir <- item
+          break
+        }
+      }
+    }
+    
+    # 如果没找到匹配的，查找任何包含DESCRIPTION的目录
+    if (is.null(package_dir)) {
+      for (item in extracted_items) {
+        if (dir.exists(item) && file.exists(file.path(item, "DESCRIPTION"))) {
+          package_dir <- item
+          break
+        }
+      }
+    }
+    
+    if (is.null(package_dir)) {
+      stop("未找到有效的R包目录（缺少DESCRIPTION文件）")
+    }
+    
+    message("  找到包目录: ", basename(package_dir))
+    
+    # 目标安装路径
+    install_path <- file.path(target_lib, package_name)
+    
+    # 如果包已存在，先删除
+    if (dir.exists(install_path)) {
+      message("  删除现有包目录...")
+      unlink(install_path, recursive = TRUE)
+      # 等待文件系统操作完成
+      Sys.sleep(0.5)
+    }
+    
+    message("  复制包文件到R库目录...")
+    # 复制包目录到R库
+    success <- file.copy(package_dir, target_lib, recursive = TRUE)
+    
+    if (!success) {
+      stop("复制包文件失败")
+    }
+    
+    # 确保目录名正确
+    copied_dir <- file.path(target_lib, basename(package_dir))
+    if (basename(package_dir) != package_name && dir.exists(copied_dir)) {
+      message("  重命名包目录为正确名称...")
+      if (dir.exists(install_path)) {
+        unlink(install_path, recursive = TRUE)
+        Sys.sleep(0.5)
+      }
+      success_rename <- file.rename(copied_dir, install_path)
+      if (!success_rename) {
+        warning("重命名失败，但包可能已成功安装在: ", copied_dir)
+      }
+    }
+    
+    # 验证安装结果
+    final_path <- if (dir.exists(install_path)) install_path else copied_dir
+    
+    if (dir.exists(final_path) && file.exists(file.path(final_path, "DESCRIPTION"))) {
+      message("  包已成功安装到: ", final_path)
+      return(TRUE)
+    } else {
+      stop("安装验证失败，目标目录不存在或无效")
+    }
+    
+  }, error = function(e) {
+    message("直接解压安装失败: ", e$message)
+    return(FALSE)
+  })
+}
+
+#' 转换zip包为tar.gz格式
+#'
+#' @description 将zip格式的R包转换为tar.gz格式以便安装
+#'
+#' @param zip_file zip文件路径
+#' @param output_file 输出的tar.gz文件路径
+#'
+#' @return 转换成功返回TRUE，失败返回FALSE
+#' @keywords internal
+convertZipToTarGz <- function(zip_file, output_file) {
+  # 创建临时目录用于解压
+  temp_dir <- tempfile("pkg_extract_")
+  dir.create(temp_dir)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
+  
+  tryCatch({
+    message("  解压zip文件...")
+    # 解压zip文件
+    utils::unzip(zip_file, exdir = temp_dir)
+    
+    # 获取解压后的内容
+    extracted_items <- list.files(temp_dir, full.names = TRUE)
+    
+    if (length(extracted_items) == 0) {
+      stop("zip文件为空")
+    }
+    
+    # 查找R包目录
+    package_dir <- NULL
+    if (length(extracted_items) == 1 && dir.exists(extracted_items[1])) {
+      # 如果只有一个目录，检查是否为R包目录
+      candidate_dir <- extracted_items[1]
+      if (file.exists(file.path(candidate_dir, "DESCRIPTION"))) {
+        package_dir <- candidate_dir
+      }
+    }
+    
+    # 如果没找到明显的包目录，在所有内容中查找DESCRIPTION文件
+    if (is.null(package_dir)) {
+      for (item in extracted_items) {
+        if (dir.exists(item) && file.exists(file.path(item, "DESCRIPTION"))) {
+          package_dir <- item
+          break
+        }
+      }
+    }
+    
+    if (is.null(package_dir)) {
+      stop("未找到有效的R包目录（缺少DESCRIPTION文件）")
+    }
+    
+    message("  找到R包目录: ", basename(package_dir))
+    
+    # 获取包目录名
+    pkg_name <- basename(package_dir)
+    
+    # 切换到包目录的父目录
+    old_wd <- getwd()
+    on.exit(setwd(old_wd), add = TRUE)
+    setwd(dirname(package_dir))
+    
+    message("  创建tar.gz文件...")
+    
+    # 在Windows下使用特殊的tar处理
+    if (.Platform$OS.type == "windows") {
+      # 尝试使用系统的tar命令
+      tar_cmd <- "tar"
+      if (nzchar(Sys.which("tar"))) {
+        tar_cmd <- Sys.which("tar")
+      } else if (file.exists("C:/Windows/System32/tar.exe")) {
+        tar_cmd <- "C:/Windows/System32/tar.exe"
+      }
+      
+      # 构建tar命令
+      cmd <- sprintf('"%s" -czf "%s" "%s"', 
+                     tar_cmd, 
+                     normalizePath(output_file, mustWork = FALSE), 
+                     basename(package_dir))
+      
+      message("  执行命令: ", cmd)
+      result <- system(cmd, intern = FALSE)
+      
+      if (result == 0 && file.exists(output_file)) {
+        message("  tar.gz文件创建成功")
+        return(TRUE)
+      } else {
+        message("  系统tar命令失败，尝试R内置tar...")
+      }
+    }
+    
+    # 使用R内置的tar函数
+    tar_result <- utils::tar(
+      tarfile = output_file, 
+      files = basename(package_dir),
+      compression = "gzip",
+      tar = "internal"  # 强制使用内置tar
+    )
+    
+    if (tar_result == 0 && file.exists(output_file)) {
+      message("  tar.gz文件创建成功")
+      return(TRUE)
+    } else {
+      message("  tar.gz文件创建失败")
+      return(FALSE)
+    }
+    
+  }, error = function(e) {
+    message("zip转tar.gz失败: ", e$message)
+    return(FALSE)
+  })
+}
+
 #' 从OSS安装包
 #'
 #' @description 从阿里云OSS下载并安装指定的R包
@@ -80,8 +339,8 @@ installFromOSS <- function(package_name,
   config <- getOSSConfig()
   download_url <- paste0(config$base_url, version_info$file)
   
-  # 创建临时文件
-  temp_file <- tempfile(fileext = ".tar.gz")
+  # 创建临时文件 - 先用通用扩展名
+  temp_file <- tempfile(fileext = ".tmp")
   on.exit(unlink(temp_file), add = TRUE)
   
   message("正在下载包 '", package_name, "' 版本 ", version, " ...")
@@ -121,6 +380,21 @@ installFromOSS <- function(package_name,
     }
   }
   
+  # 检测文件格式并处理
+  file_format <- detectFileFormat(temp_file)
+  message("检测到文件格式: ", file_format)
+  
+  # 准备用于安装的文件
+  install_file <- temp_file
+  
+  if (file_format == "zip") {
+    message("检测到zip格式，作为二进制包处理...")
+    # 对于zip格式，标记为二进制包处理
+    install_file <- temp_file
+  } else if (file_format == "unknown") {
+    warning("无法确定文件格式，尝试直接安装...")
+  }
+  
   # 安装包
   message("正在安装包...")
   
@@ -135,24 +409,119 @@ installFromOSS <- function(package_name,
   
   # 执行安装
   tryCatch({
-    install.packages(
-      temp_file,
-      repos = NULL,
-      type = "source",
-      dependencies = dependencies,
-      upgrade = upgrade,
-      quiet = FALSE
-    )
-    
-    # 验证安装
-    if (package_name %in% rownames(installed.packages())) {
-      new_version <- as.character(packageVersion(package_name))
-      message("\n成功安装 '", package_name, "' 版本 ", new_version)
-      return(invisible(TRUE))
+    # 根据文件格式选择安装方式
+    if (file_format == "zip") {
+      # 对于zip格式（二进制包），优先使用直接解压安装
+      message("尝试直接解压安装...")
+      if (installByExtraction(temp_file, package_name)) {
+        # 验证安装
+        if (package_name %in% rownames(installed.packages())) {
+          new_version <- as.character(packageVersion(package_name))
+          message("\n成功通过解压安装 '", package_name, "' 版本 ", new_version)
+          return(invisible(TRUE))
+        }
+      } else {
+        stop("直接解压安装失败")
+      }
     } else {
-      stop("安装似乎失败了，包未找到")
+      # 源码包安装
+      message("作为源码包安装...")
+      
+      # 确保文件扩展名正确
+      if (!grepl("\\.tar\\.gz$", install_file)) {
+        # 如果文件扩展名不是.tar.gz，创建一个正确命名的副本
+        correct_name_file <- tempfile(fileext = ".tar.gz")
+        file.copy(install_file, correct_name_file)
+        on.exit(unlink(correct_name_file), add = TRUE)
+        install_file <- correct_name_file
+        message("创建正确命名的文件副本: ", basename(install_file))
+      }
+      
+      # 设置安装选项
+      old_options <- options()
+      on.exit(options(old_options), add = TRUE)
+      
+      # 在Windows下设置特殊选项
+      if (.Platform$OS.type == "windows") {
+        options(
+          repos = NULL,
+          install.packages.compile.from.source = "always"
+        )
+      }
+      
+      install.packages(
+        install_file,
+        repos = NULL,
+        type = "source",
+        dependencies = dependencies,
+        upgrade = upgrade,
+        quiet = FALSE,
+        INSTALL_opts = c("--no-lock", "--no-test-load")
+      )
+      
+      # 等待一小段时间让安装完成
+      Sys.sleep(1)
+      
+      # 验证安装
+      if (package_name %in% rownames(installed.packages())) {
+        new_version <- as.character(packageVersion(package_name))
+        message("\n成功安装 '", package_name, "' 版本 ", new_version)
+        return(invisible(TRUE))
+      } else {
+        stop("安装似乎失败了，包未找到")
+      }
     }
   }, error = function(e) {
+    # 如果主要安装方法失败，尝试备用方法
+    if (file_format == "zip") {
+      message("\n直接解压安装失败，尝试转换为tar.gz格式...")
+      tryCatch({
+        # 创建临时tar.gz文件
+        tar_gz_file <- tempfile(fileext = ".tar.gz")
+        on.exit(unlink(tar_gz_file), add = TRUE)
+        
+        if (convertZipToTarGz(temp_file, tar_gz_file)) {
+          message("尝试源码包安装...")
+          install.packages(
+            tar_gz_file,
+            repos = NULL,
+            type = "source",
+            dependencies = dependencies,
+            upgrade = upgrade,
+            quiet = FALSE,
+            INSTALL_opts = c("--no-lock", "--no-test-load")
+          )
+          
+          # 验证安装
+          if (package_name %in% rownames(installed.packages())) {
+            new_version <- as.character(packageVersion(package_name))
+            message("\n成功通过源码包安装 '", package_name, "' 版本 ", new_version)
+            return(invisible(TRUE))
+          }
+        }
+        
+        # 最后尝试二进制包安装
+        message("尝试二进制包安装...")
+        install.packages(
+          temp_file,
+          repos = NULL,
+          type = "win.binary",
+          dependencies = dependencies,
+          quiet = FALSE
+        )
+        
+        # 验证安装
+        if (package_name %in% rownames(installed.packages())) {
+          new_version <- as.character(packageVersion(package_name))
+          message("\n成功通过二进制包安装 '", package_name, "' 版本 ", new_version)
+          return(invisible(TRUE))
+        }
+        
+      }, error = function(e2) {
+        message("所有备用安装方法都失败: ", e2$message)
+      })
+    }
+    
     stop("安装失败: ", e$message)
   })
 }
@@ -387,4 +756,4 @@ downloadPackage <- function(package_name,
   message("大小: ", file_size_mb, " MB")
   
   return(invisible(dest_file))
-} 
+}
