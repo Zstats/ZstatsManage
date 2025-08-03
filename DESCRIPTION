@@ -1,0 +1,35 @@
+Package: zstatsManage
+Type: Package
+Title: R Package Update Manager for Aliyun OSS
+Version: 0.1.0
+Authors@R: 
+    person("Your", "Name", , "your.email@example.com", role = c("aut", "cre"))
+Description: A package management tool that helps users check, download and install R packages
+    from Aliyun OSS service. It provides functions to check for package updates, list available
+    packages, and install packages with version control.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Imports:
+    data.table,digest,do,dplyr,fs,ggnewscale,ggplot2,ggpmisc,Matrix,RStata,rstudioapi,scales,sf,BAPC,INLA,snowfall,
+    ggsci,vctrs,patchwork,colorfindr,configr,tools,utils,stats,fanplot,etm,epitools,tidytable, RColorBrewer,
+    tidyr,
+    ggrepel,MASS,
+    mgcv,
+    splines,
+    foreach,
+    httr (>= 1.4.0),
+    jsonlite (>= 1.8.0),
+    writexl,
+    purrr,
+    openssl,
+    FactoMineR,
+    tibble
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+RoxygenNote: 7.2.3
+VignetteBuilder: knitr
+URL: https://github.com/zstats/zstatsManage
+BugReports: https://github.com/zstats/zstatsManage/issues 
