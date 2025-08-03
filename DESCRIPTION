@@ -11,7 +11,7 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
-    data.table,digest,do,dplyr,fs,ggnewscale,ggplot2,ggpmisc,Matrix,RStata,rstudioapi,scales,sf,BAPC,INLA,snowfall,
+    data.table,digest,do,dplyr,fs,ggnewscale,ggplot2,ggpmisc,Matrix,RStata,rstudioapi,scales,sf,snowfall,
     ggsci,vctrs,patchwork,colorfindr,configr,tools,utils,stats,fanplot,etm,epitools,tidytable, RColorBrewer,
     tidyr,
     ggrepel,MASS,
