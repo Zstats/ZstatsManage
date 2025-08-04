@@ -24,7 +24,10 @@ Imports:
     purrr,
     openssl,
     FactoMineR,
-    tibble
+    tibble,
+    doParallel,
+    Epi,
+    cmprsk
 Suggests:
     testthat (>= 3.0.0),
     knitr,
