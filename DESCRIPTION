@@ -11,23 +11,11 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports:
-    data.table,digest,do,dplyr,fs,ggnewscale,ggplot2,ggpmisc,Matrix,RStata,rstudioapi,scales,sf,snowfall,
-    ggsci,vctrs,patchwork,colorfindr,configr,tools,utils,stats,fanplot,etm,epitools,tidytable, RColorBrewer,
-    tidyr,
-    ggrepel,MASS,
-    mgcv,
-    splines,
-    foreach,
-    httr (>= 1.4.0),
     jsonlite (>= 1.8.0),
-    writexl,
-    purrr,
-    openssl,
-    FactoMineR,
-    tibble,
-    doParallel,
-    Epi,
-    cmprsk
+    httr (>= 1.4.0),
+    utils,
+    tools,
+    digest (>= 0.6.0)
 Suggests:
     testthat (>= 3.0.0),
     knitr,

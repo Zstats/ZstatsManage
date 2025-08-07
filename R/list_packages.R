@@ -179,8 +179,47 @@ getPackageInfo <- function(package_name) {
     cat("  未安装\n")
   }
   cat("\n依赖包:\n")
-  for (dep in info$dependencies) {
-    cat("  - ", dep, "\n")
+  if (!is.null(info$dependencies)) {
+    # 显示R版本要求
+    if (!is.null(info$dependencies$r_version)) {
+      cat("  - R版本要求: ", info$dependencies$r_version, "\n")
+    }
+    
+    # 显示CRAN包依赖
+    if (!is.null(info$dependencies$cran_packages) && length(info$dependencies$cran_packages) > 0) {
+      cat("  - CRAN包依赖:\n")
+      for (dep in info$dependencies$cran_packages) {
+        required_text <- if (dep$required) "(必需)" else "(可选)"
+        desc_text <- if (!is.null(dep$description) && dep$description != "") 
+          paste0(" - ", dep$description) else ""
+        cat("    * ", dep$name, " ", dep$version, " ", required_text, desc_text, "\n")
+      }
+    }
+    
+    # 显示OSS包依赖
+    if (!is.null(info$dependencies$oss_packages) && length(info$dependencies$oss_packages) > 0) {
+      cat("  - OSS包依赖:\n")
+      for (dep in info$dependencies$oss_packages) {
+        required_text <- if (dep$required) "(必需)" else "(可选)"
+        desc_text <- if (!is.null(dep$description) && dep$description != "") 
+          paste0(" - ", dep$description) else ""
+        cat("    * ", dep$name, " ", dep$version, " ", required_text, desc_text, "\n")
+      }
+    }
+    
+    # 显示系统依赖
+    if (!is.null(info$dependencies$system_dependencies) && length(info$dependencies$system_dependencies) > 0) {
+      cat("  - 系统依赖:\n")
+      for (dep in info$dependencies$system_dependencies) {
+        required_text <- if (dep$required) "(必需)" else "(可选)"
+        platform_text <- if (!is.null(dep$platform)) paste0(" [", dep$platform, "]") else ""
+        desc_text <- if (!is.null(dep$description) && dep$description != "") 
+          paste0(" - ", dep$description) else ""
+        cat("    * ", dep$name, platform_text, " ", required_text, desc_text, "\n")
+      }
+    }
+  } else {
+    cat("  - 无特殊依赖\n")
   }
   cat("\n可用版本: ", info$total_versions, " 个\n")
   

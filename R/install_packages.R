@@ -840,14 +840,7 @@ installFromOSS <- function(package_name,
   # 安装包
   message("正在安装包...")
   
-  # 处理依赖
-  if (dependencies) {
-    # 检查依赖是否满足
-    deps <- pkg_info$dependencies
-    if (!is.null(deps) && length(deps) > 0) {
-      message("检查依赖包: ", paste(deps, collapse = ", "))
-    }
-  }
+  # 这里已经在前面的checkAndInstallDependencies中处理了依赖，无需重复处理
   
   # 执行安装
   tryCatch({
