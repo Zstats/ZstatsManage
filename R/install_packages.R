@@ -84,7 +84,7 @@ parseVersionRequirement <- function(version_req) {
 #' @keywords internal
 checkVersionRequirement <- function(current_version, version_req) {
   parsed <- parseVersionRequirement(version_req)
-  comp_result <- compareVersion(current_version, parsed$version)
+  comp_result <- utils::compareVersion(current_version, parsed$version)
   
   switch(parsed$operator,
     ">=" = comp_result >= 0,
@@ -746,7 +746,7 @@ installFromOSS <- function(package_name,
   is_installed <- package_name %in% rownames(installed.packages())
   if (is_installed && !force) {
     installed_version <- as.character(packageVersion(package_name))
-    if (compareVersion(installed_version, version) >= 0) {
+    if (utils::compareVersion(installed_version, version) >= 0) {
       message("包 '", package_name, "' 已安装版本 ", installed_version, 
               " (>= ", version, ")，使用 force = TRUE 强制重新安装")
       return(invisible(TRUE))

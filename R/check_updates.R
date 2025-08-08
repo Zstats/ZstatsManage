@@ -60,7 +60,7 @@ checkPackageUpdates <- function(packages = NULL, show_all = FALSE, check_depende
       latest_ver <- oss_map[[pkg]]$current_version
       
       # 比较版本
-      update_available <- compareVersion(current_ver, latest_ver) < 0
+      update_available <- utils::compareVersion(current_ver, latest_ver) < 0
       
       # 检查依赖变更
       dependency_changes <- ""
@@ -157,32 +157,8 @@ checkPackageUpdates <- function(packages = NULL, show_all = FALSE, check_depende
   return(results)
 }
 
-#' 比较版本号
-#'
-#' @description 比较两个版本号的大小
-#'
-#' @param v1 版本号1
-#' @param v2 版本号2
-#'
-#' @return -1 如果v1 < v2, 0 如果v1 = v2, 1 如果v1 > v2
-#' @keywords internal
-compareVersion <- function(v1, v2) {
-  v1_parts <- as.numeric(strsplit(v1, "\\.")[[1]])
-  v2_parts <- as.numeric(strsplit(v2, "\\.")[[1]])
-  
-  # 补齐长度
-  max_len <- max(length(v1_parts), length(v2_parts))
-  v1_parts <- c(v1_parts, rep(0, max_len - length(v1_parts)))
-  v2_parts <- c(v2_parts, rep(0, max_len - length(v2_parts)))
-  
-  # 逐位比较
-  for (i in seq_along(v1_parts)) {
-    if (v1_parts[i] < v2_parts[i]) return(-1)
-    if (v1_parts[i] > v2_parts[i]) return(1)
-  }
-  
-  return(0)
-}
+# 注意：使用R内置的utils::compareVersion函数进行版本比较
+# 该函数已被移除，现在直接使用utils::compareVersion
 
 #' 获取包的更新历史
 #'

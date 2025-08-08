@@ -148,7 +148,7 @@ getPackageInfo <- function(package_name) {
     is_installed = is_installed,
     installed_version = installed_version,
     update_available = if (is_installed) {
-      compareVersion(installed_version, pkg_info$current_version) < 0
+      utils::compareVersion(installed_version, pkg_info$current_version) < 0
     } else {
       FALSE
     },
