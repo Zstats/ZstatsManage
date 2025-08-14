@@ -70,7 +70,11 @@ listAvailablePackages <- function(pattern = NULL, tags = NULL, show_versions = F
   } else {
     # 只显示最新版本
     results <- do.call(rbind, lapply(packages, function(pkg) {
-      latest_version <- pkg$versions[[1]]  # 假设第一个是最新版本
+      # 使用通用选择逻辑，按current_version匹配或回退到最高版本
+      latest_version <- tryCatch(selectVersionInfo(pkg, pkg$current_version), error = function(e) {
+        # 回退保护：若结构异常，仍避免报错
+        if (!is.null(pkg$versions) && length(pkg$versions) > 0) pkg$versions[[1]] else list(release_date = NA, size = NA)
+      })
       data.frame(
         package = pkg$name,
         version = pkg$current_version,

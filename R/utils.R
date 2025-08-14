@@ -43,6 +43,56 @@ generateChecksums <- function(file_path) {
   return(result)
 }
 
+#' 选择版本信息
+#'
+#' @description 根据目标版本或当前版本从`pkg_info$versions`中选择对应的版本信息；
+#' 如果未提供版本且`current_version`无法匹配，则回退到可用的最高版本。
+#'
+#' @param pkg_info 包信息列表，包含`current_version`与`versions`字段
+#' @param version 目标版本，默认NULL表示使用`current_version`
+#'
+#' @return 匹配到的版本信息列表
+#' @keywords internal
+selectVersionInfo <- function(pkg_info, version = NULL) {
+  # 基本校验
+  if (is.null(pkg_info$versions) || length(pkg_info$versions) == 0) {
+    stop("包无可用版本")
+  }
+
+  target_version <- if (is.null(version)) pkg_info$current_version else version
+
+  # 优先精确匹配目标版本
+  if (!is.null(target_version) && nzchar(target_version)) {
+    for (v in pkg_info$versions) {
+      if (!is.null(v$version) && identical(v$version, target_version)) {
+        return(v)
+      }
+    }
+  }
+
+  # 回退：选择最高版本（稳妥，不依赖列表顺序）
+  chosen <- pkg_info$versions[[1]]
+  for (v in pkg_info$versions) {
+    if (!is.null(v$version) && !is.null(chosen$version)) {
+      if (utils::compareVersion(v$version, chosen$version) > 0) {
+        chosen <- v
+      }
+    }
+  }
+
+  # 若是显式指定的version但未找到，抛出错误；
+  # 若是默认current_version未匹配，则仅警告并回退。
+  if (!is.null(version)) {
+    stop("未找到版本: ", version,
+         "\n可用版本: ",
+         paste(sapply(pkg_info$versions, function(x) x$version), collapse = ", "))
+  } else if (!is.null(target_version) && nzchar(target_version) && !identical(chosen$version, target_version)) {
+    warning("未在versions中找到current_version '", target_version, "'，已回退到可用的最新版本 ", chosen$version)
+  }
+
+  return(chosen)
+}
+
 #' 生成包元数据
 #'
 #' @description 扫描包目录并生成完整的packages.json元数据文件

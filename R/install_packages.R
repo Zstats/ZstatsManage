@@ -726,21 +726,9 @@ installFromOSS <- function(package_name,
   # 确定要安装的版本
   if (is.null(version)) {
     version <- pkg_info$current_version
-    version_info <- pkg_info$versions[[1]]
-  } else {
-    # 查找指定版本
-    version_info <- NULL
-    for (v in pkg_info$versions) {
-      if (v$version == version) {
-        version_info <- v
-        break
-      }
-    }
-    if (is.null(version_info)) {
-      stop("未找到版本: ", version, "\n可用版本: ", 
-           paste(sapply(pkg_info$versions, function(x) x$version), collapse = ", "))
-    }
   }
+  # 使用通用选择逻辑，确保与current_version一致或回退到最高版本
+  version_info <- selectVersionInfo(pkg_info, version)
   
   # 检查是否已安装
   is_installed <- package_name %in% rownames(installed.packages())
@@ -1003,7 +991,10 @@ installPackages <- function(packages, ask = TRUE, stop_on_error = FALSE) {
     package = packages,
     version = sapply(packages, function(p) package_map[[p]]$current_version),
     size_mb = sapply(packages, function(p) {
-      round(package_map[[p]]$versions[[1]]$size / 1024 / 1024, 2)
+      vinfo <- tryCatch(selectVersionInfo(package_map[[p]], package_map[[p]]$current_version), error = function(e) {
+        if (!is.null(package_map[[p]]$versions) && length(package_map[[p]]$versions) > 0) package_map[[p]]$versions[[1]] else list(size = NA)
+      })
+      round(vinfo$size / 1024 / 1024, 2)
     }),
     stringsAsFactors = FALSE
   )
@@ -1115,20 +1106,9 @@ downloadPackage <- function(package_name,
   # 确定版本
   if (is.null(version)) {
     version <- pkg_info$current_version
-    version_info <- pkg_info$versions[[1]]
-  } else {
-    # 查找指定版本
-    version_info <- NULL
-    for (v in pkg_info$versions) {
-      if (v$version == version) {
-        version_info <- v
-        break
-      }
-    }
-    if (is.null(version_info)) {
-      stop("未找到版本: ", version)
-    }
   }
+  # 使用通用选择逻辑
+  version_info <- selectVersionInfo(pkg_info, version)
   
   # 构建文件名和路径
   file_name <- basename(version_info$file)

@@ -67,8 +67,10 @@ checkPackageUpdates <- function(packages = NULL, show_all = FALSE, check_depende
       new_dependencies <- ""
       
       if (check_dependencies && update_available) {
-        # 获取最新版本的依赖变更信息
-        latest_version_info <- oss_map[[pkg]]$versions[[1]]
+        # 获取最新版本的依赖变更信息（按current_version匹配或回退到最高版本）
+        latest_version_info <- tryCatch(selectVersionInfo(oss_map[[pkg]], oss_map[[pkg]]$current_version), error = function(e) {
+          if (!is.null(oss_map[[pkg]]$versions) && length(oss_map[[pkg]]$versions) > 0) oss_map[[pkg]]$versions[[1]] else NULL
+        })
         if (!is.null(latest_version_info$dependency_changes)) {
           dep_changes <- latest_version_info$dependency_changes
           
